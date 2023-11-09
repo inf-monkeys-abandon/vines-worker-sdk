@@ -1,4 +1,8 @@
+import io
 from setuptools import setup, find_packages
+
+with io.open("README.md", "r", encoding='utf-8') as f:
+    long_description = f.read()
 
 # Package metadata
 NAME = 'vines_infer_sdk'
@@ -11,7 +15,12 @@ LICENSE = 'MIT'
 
 # Required packages
 INSTALL_REQUIRES = [
-    # List your dependencies here, e.g., 'numpy', 'requests', 'matplotlib'
+    "boto3",
+    "botocore",
+    "flask",
+    "sentry_sdk",
+    "sentry-sdk[flask]",
+    "bullmq"
 ]
 
 # Packages to include
@@ -21,6 +30,8 @@ setup(
     name=NAME,
     version=VERSION,
     description=DESCRIPTION,
+    long_description=long_description,
+    long_description_content_type="text/markdown",
     author=AUTHOR,
     author_email=EMAIL,
     url=URL,
