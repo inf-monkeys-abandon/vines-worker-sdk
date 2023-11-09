@@ -4,7 +4,7 @@ import json
 import os
 
 from sentry_sdk.integrations.flask import FlaskIntegration
-from lib.logger import Logger
+from vines_infer_sdk.logger import Logger
 
 
 def create_server(

@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 # Package metadata
 NAME = 'vines_infer_sdk'
-VERSION = '0.0.1'
+VERSION = '0.0.2'
 DESCRIPTION = 'Vines Python 训练项目 SDK （供内部使用）'
 AUTHOR = 'infmonkeys'
 EMAIL = 'def@infmonkeys.com'

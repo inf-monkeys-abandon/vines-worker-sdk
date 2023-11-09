@@ -1,5 +1,5 @@
-from lib.server import create_server
-from lib.oss import OSSClient
+from vines_infer_sdk.server import create_server
+from vines_infer_sdk.oss import OSSClient
 from flask import request
 
 sentry_dsn = "https://45426676ad0c4ea9628deef009d11620@o4506154455531520.ingest.sentry.io/4506188249694208"
