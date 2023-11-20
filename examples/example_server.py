@@ -1,5 +1,4 @@
 from vines_infer_sdk.server import create_server
-from vines_infer_sdk.oss import OSSClient
 from flask import request
 
 sentry_dsn = "https://45426676ad0c4ea9628deef009d11620@o4506154455531520.ingest.sentry.io/4506188249694208"
@@ -10,15 +9,6 @@ app = create_server(
     sentry_dsn=sentry_dsn,
     log_redis_queue_url=redis_queue_url
 )
-
-# oss_client = OSSClient(
-#     aws_access_key_id="",
-#     aws_secret_access_key="",
-#     endpoint_url="",
-#     region_name,
-#     bucket_name,
-#     base_url,
-# )
 
 
 @app.get("/test")
