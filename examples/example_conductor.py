@@ -1,11 +1,26 @@
+import sys
+
 from vines_infer_sdk.conductor import ConductorClient
 import threading
 import time
+import signal
 
 client = ConductorClient(
     conductor_base_url="http://172.29.110.16:28080/api",
     worker_id="some-infer-worker"
 )
+
+
+def signal_handler(signum, frame):
+    print('SIGTERM or SIGINT signal received.')
+    print('开始标记所有 task 为失败状态 ...')
+
+    client.set_all_tasks_to_failed_state()
+    sys.exit()
+
+
+signal.signal(signal.SIGINT, signal_handler)
+signal.signal(signal.SIGTERM, signal_handler)
 
 
 def start_mock_result_thread(task):
