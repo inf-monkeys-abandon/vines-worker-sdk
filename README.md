@@ -11,6 +11,9 @@
 
 ## 安装
 
+```shell
+pip install vines-infer-sdk
+```
 
 ## 使用示例
 
