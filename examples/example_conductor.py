@@ -1,12 +1,12 @@
 import sys
 
-from vines_infer_sdk.conductor import ConductorClient
+from vines_worker_sdk.conductor import ConductorClient
 import threading
 import time
 import signal
 
 client = ConductorClient(
-    conductor_base_url="http://172.29.110.16:28080/api",
+    conductor_base_url="https://conductor.infmonkeys.com/api",
     worker_id="some-infer-worker"
 )
 

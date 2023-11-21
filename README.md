@@ -12,7 +12,7 @@
 ## 安装
 
 ```shell
-pip install vines-infer-sdk
+pip install vines-worker-sdk
 ```
 
 ## 使用示例

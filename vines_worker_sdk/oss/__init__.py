@@ -4,7 +4,7 @@ import boto3
 from botocore.client import Config
 from urllib.parse import urljoin
 
-from vines_infer_sdk.utils.files import ensure_directory_exists
+from vines_worker_sdk.utils.files import ensure_directory_exists
 
 
 class OSSClient():
