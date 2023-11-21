@@ -1,7 +1,10 @@
+import logging
+
 import requests
 import time
 import threading
 import traceback
+from requests.auth import HTTPBasicAuth
 
 
 class ConductorClient:
@@ -10,10 +13,18 @@ class ConductorClient:
     # 当前正在运行的 task 列表
     tasks = {}
 
-    def __init__(self, conductor_base_url, worker_id, poll_interval_ms=500):
+    def __init__(self, conductor_base_url, worker_id, poll_interval_ms=500, authentication_settings=None):
         self.conductor_base_url = conductor_base_url
         self.worker_id = worker_id
         self.poll_interval_ms = poll_interval_ms
+        self.authentication_settings = authentication_settings
+
+    def __get_auth(self):
+        auth = HTTPBasicAuth(
+            username=self.authentication_settings.get('username'),
+            password=self.authentication_settings.get('password')
+        ) if self.authentication_settings else None
+        return auth
 
     def register_handler(self, name, callback):
         self.task_types[name] = callback
@@ -25,7 +36,12 @@ class ConductorClient:
         }
         if domain:
             params['domain'] = domain
-        r = requests.get(f"{self.conductor_base_url}/tasks/poll/batch/{task_type}", params=params)
+
+        r = requests.get(
+            url=f"{self.conductor_base_url}/tasks/poll/batch/{task_type}",
+            params=params,
+            auth=self.__get_auth()
+        )
         tasks = r.json()
         return tasks
 
@@ -64,6 +80,8 @@ class ConductorClient:
         while True:
             for task_type in self.task_types:
                 tasks = self.__poll_by_task_type(task_type, self.worker_id, 1)
+                if len(tasks) > 0:
+                    logging.info(f"拉取到 {len(tasks)} 条 {task_type} 任务")
                 for task in tasks:
                     callback = self.task_types[task_type]
                     task_id = task.get('taskId')
@@ -115,4 +133,5 @@ class ConductorClient:
         requests.post(
             f"{self.conductor_base_url}/tasks",
             json=body,
+            auth=self.__get_auth()
         )
