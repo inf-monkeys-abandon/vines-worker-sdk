@@ -6,7 +6,7 @@ with io.open("README.md", "r", encoding='utf-8') as f:
 
 # Package metadata
 NAME = 'vines_infer_sdk'
-VERSION = '0.0.2'
+VERSION = '0.0.1'
 DESCRIPTION = 'Vines Python 训练项目 SDK （供内部使用）'
 AUTHOR = 'infmonkeys'
 EMAIL = 'def@infmonkeys.com'
