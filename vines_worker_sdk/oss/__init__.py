@@ -2,7 +2,6 @@ import logging
 import requests
 import boto3
 from botocore.client import Config
-from urllib.parse import urljoin
 import os
 
 from vines_worker_sdk.utils.files import ensure_directory_exists
@@ -79,7 +78,7 @@ class OSSClient():
         """
         try:
             self.client.upload_file(file_path, self.bucket_name, key)
-            return urljoin(self.base_url, key)
+            return self.base_url + "/" + key
         except Exception as e:
             print('fail with unknown error: {}'.format(e))
 
@@ -116,13 +115,16 @@ class OSSClient():
                     if file_extension not in file_extensions:
                         continue
                 file_key = item_path.replace(root_folder, '')
+                if file_key[0] == '/':
+                    file_key = file_key[1:]
                 if url_prefix:
                     file_key = f"{url_prefix}{file_key}"
-                print(f"开始将文件 {item_path} 上传到 {file_key}")
                 file_url = self.upload_file_tos(item_path, file_key)
+                print(f"成功将文件 {item_path} 上传到 {file_url}")
                 result_map[item] = file_url
             elif os.path.isdir(item_path):
                 # 如果是目录，递归调用函数
-                result_map[item] = self.__upload_directory_recursive(root_folder, item_path, file_extensions, url_prefix)
+                result_map[item] = self.__upload_directory_recursive(root_folder, item_path, file_extensions,
+                                                                     url_prefix)
 
         return result_map
