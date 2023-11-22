@@ -6,11 +6,11 @@ with io.open("README.md", "r", encoding='utf-8') as f:
 
 # Package metadata
 NAME = 'vines_worker_sdk'
-VERSION = '0.0.1'
+VERSION = '0.0.2'
 DESCRIPTION = 'Vines Python 训练项目 SDK （供内部使用）'
 AUTHOR = 'infmonkeys'
 EMAIL = 'def@infmonkeys.com'
-URL = 'https://github.com/inf-monkeys/viens-worker-sdk'
+URL = 'https://github.com/inf-monkeys/vines-worker-sdk'
 LICENSE = 'MIT'
 
 # Required packages

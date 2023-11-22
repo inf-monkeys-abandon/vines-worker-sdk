@@ -3,6 +3,7 @@ import requests
 import boto3
 from botocore.client import Config
 from urllib.parse import urljoin
+import os
 
 from vines_worker_sdk.utils.files import ensure_directory_exists
 
@@ -47,8 +48,6 @@ class OSSClient():
     def get_file_type(self, file_url):
         return file_url.split('.')[-1]
 
-
-
     def download_file(self, file_url, target_path):
         """
             下载文件进指定目录
@@ -90,3 +89,40 @@ class OSSClient():
             self.client.download_file(self.bucket_name, key, target_filename)
         except Exception as e:
             print('fail with unknown error: {}'.format(e))
+
+    def __get_file_extension(self, file_path):
+        _, file_extension = os.path.splitext(file_path)
+        return file_extension
+
+    def upload_directory(self, directory_path, file_extensions=None, url_prefix=None):
+        return self.__upload_directory_recursive(
+            os.path.dirname(directory_path),
+            directory_path,
+            file_extensions,
+            url_prefix
+        )
+
+    def __upload_directory_recursive(self, root_folder, directory_path, file_extensions=None, url_prefix=None):
+        result_map = {}
+        # 遍历目录
+        for item in os.listdir(directory_path):
+            item_path = os.path.join(directory_path, item)
+
+            # 判断是文件还是目录
+            if os.path.isfile(item_path):
+                # 如果是文件，进行上传
+                if file_extensions:
+                    file_extension = self.__get_file_extension(item_path)
+                    if file_extension not in file_extensions:
+                        continue
+                file_key = item_path.replace(root_folder, '')
+                if url_prefix:
+                    file_key = f"{url_prefix}{file_key}"
+                print(f"开始将文件 {item_path} 上传到 {file_key}")
+                file_url = self.upload_file_tos(item_path, file_key)
+                result_map[item] = file_url
+            elif os.path.isdir(item_path):
+                # 如果是目录，递归调用函数
+                result_map[item] = self.__upload_directory_recursive(root_folder, item_path, file_extensions, url_prefix)
+
+        return result_map
