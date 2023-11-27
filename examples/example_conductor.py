@@ -6,6 +6,8 @@ import time
 import signal
 
 client = ConductorClient(
+    service_registration_url="",
+    service_registration_token="",
     conductor_base_url="https://conductor.infmonkeys.com/api",
     worker_id="some-infer-worker"
 )
@@ -49,5 +51,11 @@ def test_handler(task):
 
 
 if __name__ == '__main__':
+    client.register_blocks([
+        {
+            "name": "infer_sdk_test",
+            "description": "test"
+        }
+    ])
     client.register_handler("infer_sdk_test", test_handler)
     client.start_polling()

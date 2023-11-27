@@ -1,0 +1,2 @@
+class ServiceRegistrationException(Exception):
+    pass

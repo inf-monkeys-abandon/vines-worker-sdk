@@ -5,6 +5,7 @@ import time
 import threading
 import traceback
 from requests.auth import HTTPBasicAuth
+from vines_worker_sdk.exceptions import ServiceRegistrationException
 
 
 class ConductorClient:
@@ -13,7 +14,17 @@ class ConductorClient:
     # 当前正在运行的 task 列表
     tasks = {}
 
-    def __init__(self, conductor_base_url, worker_id, poll_interval_ms=500, authentication_settings=None):
+    def __init__(
+            self,
+            service_registration_url: str,
+            service_registration_token: str,
+            conductor_base_url: str,
+            worker_id,
+            poll_interval_ms=500,
+            authentication_settings=None
+    ):
+        self.service_registration_url = service_registration_url
+        self.service_registration_token = service_registration_token
         self.conductor_base_url = conductor_base_url
         self.worker_id = worker_id
         self.poll_interval_ms = poll_interval_ms
@@ -25,6 +36,34 @@ class ConductorClient:
             password=self.authentication_settings.get('password')
         ) if self.authentication_settings else None
         return auth
+
+    def __add_source_for_blocks(self, blocks):
+        for block in blocks:
+            if not block.get('extra'):
+                block['extra'] = {}
+            if not block.get('extra').get('meta'):
+                block['extra']['meta'] = {}
+            block['extra']['meta']['source'] = self.worker_id
+
+    def register_blocks(self, blocks):
+        self.__add_source_for_blocks(blocks)
+        r = requests.post(
+            url=f"{self.service_registration_url}/api/blocks/register",
+            json={
+                "blocks": blocks
+            },
+            headers={
+                "x-vines-service-registration-key": self.service_registration_token
+            }
+        )
+        json = r.json()
+        code, message = json.get('code'), json.get('message')
+        if code != 200:
+            raise ServiceRegistrationException(message)
+        data = json.get('data', {})
+        success = data.get('success')
+        if not success:
+            raise ServiceRegistrationException("Register blocks failed")
 
     def register_handler(self, name, callback):
         self.task_types[name] = callback

@@ -4,3 +4,4 @@ flask
 sentry_sdk
 sentry-sdk[flask]
 bullmq
+requests
