@@ -111,15 +111,14 @@ class ConductorClient:
                     result = callback(task)
                     # 如果有明确返回值，说明是同步执行逻辑，否则是一个异步函数，由开发者自己来修改 task 状态
                     if result:
-                        del self.tasks[task_id]
                         self.update_task_result(
                             workflow_instance_id=workflow_instance_id,
                             task_id=task_id,
                             status="COMPLETED",
                             output_data=result
                         )
+                        del self.tasks[task_id]
                 except Exception as e:
-                    del self.tasks[task_id]
                     traceback.print_stack()
                     self.update_task_result(
                         workflow_instance_id=workflow_instance_id,
@@ -130,6 +129,7 @@ class ConductorClient:
                             "errMsg": str(e)
                         }
                     )
+                    del self.tasks[task_id]
 
             return wrapper
 
