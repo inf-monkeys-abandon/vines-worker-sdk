@@ -51,11 +51,11 @@ def test_handler(task):
 
 
 if __name__ == '__main__':
-    client.register_blocks([
+    client.register_block(
         {
             "name": "infer_sdk_test",
             "description": "test"
         }
-    ])
+    )
     client.register_handler("infer_sdk_test", test_handler)
     client.start_polling()

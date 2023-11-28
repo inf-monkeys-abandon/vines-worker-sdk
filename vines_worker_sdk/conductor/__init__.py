@@ -18,8 +18,8 @@ class ConductorClient:
             self,
             service_registration_url: str,
             service_registration_token: str,
-            conductor_base_url: str,
             worker_id,
+            conductor_base_url: str = "https://conductor.infmonkeys.com/api",
             poll_interval_ms=500,
             authentication_settings=None
     ):
@@ -37,20 +37,37 @@ class ConductorClient:
         ) if self.authentication_settings else None
         return auth
 
-    def __add_source_for_blocks(self, blocks):
-        for block in blocks:
-            if not block.get('extra'):
-                block['extra'] = {}
-            if not block.get('extra').get('meta'):
-                block['extra']['meta'] = {}
-            block['extra']['meta']['source'] = self.worker_id
+    def __add_source_for_block(self, block):
+        if not block.get('extra'):
+            block['extra'] = {}
+        if not block.get('extra').get('meta'):
+            block['extra']['meta'] = {}
+        block['extra']['meta']['source'] = self.worker_id
 
-    def register_blocks(self, blocks):
-        self.__add_source_for_blocks(blocks)
+    def __register_task_def(self, task_def):
+        """
+        向 conductor 注册 task
+        """
+        requests.post(
+            url=f"{self.conductor_base_url}/metadata/taskdefs",
+            json=[task_def]
+        )
+
+    def register_block(self, block, retry_count=3, timeout_seconds=86400, owner_email='dev@infmonkeys.com'):
+        task_def = {
+            "name": block.get('name'),
+            "inputKeys": [input.get('name') for input in block.get('input')],
+            "outputKeys": [output.get('name') for output in block.get('output')],
+            "retryCount": retry_count,
+            "timeoutSeconds": timeout_seconds,
+            "ownerEmail": owner_email
+        }
+        self.__register_task_def(task_def)
+        self.__add_source_for_block(block)
         r = requests.post(
             url=f"{self.service_registration_url}/api/blocks/register",
             json={
-                "blocks": blocks
+                "blocks": [block]
             },
             headers={
                 "x-vines-service-registration-key": self.service_registration_token
