@@ -6,6 +6,9 @@ import threading
 import traceback
 from requests.auth import HTTPBasicAuth
 from vines_worker_sdk.exceptions import ServiceRegistrationException
+import json
+
+from vines_worker_sdk.oss import OSSClient
 
 
 class ConductorClient:
@@ -21,7 +24,9 @@ class ConductorClient:
             worker_id,
             conductor_base_url: str = "https://conductor.infmonkeys.com/api",
             poll_interval_ms=500,
-            authentication_settings=None
+            authentication_settings=None,
+            task_output_payload_size_threshold_kb=1024,
+            external_storage: OSSClient = None
     ):
         self.service_registration_url = service_registration_url
         self.service_registration_token = service_registration_token
@@ -29,6 +34,8 @@ class ConductorClient:
         self.worker_id = worker_id
         self.poll_interval_ms = poll_interval_ms
         self.authentication_settings = authentication_settings
+        self.task_output_payload_size_threshold_kb = task_output_payload_size_threshold_kb
+        self.external_storage = external_storage
 
     def __get_auth(self):
         auth = HTTPBasicAuth(
@@ -135,17 +142,20 @@ class ConductorClient:
 
         while True:
             for task_type in self.task_types:
-                tasks = self.__poll_by_task_type(task_type, self.worker_id, 1)
-                if len(tasks) > 0:
-                    logging.info(f"拉取到 {len(tasks)} 条 {task_type} 任务")
-                for task in tasks:
-                    callback = self.task_types[task_type]
-                    task_id = task.get('taskId')
-                    self.tasks[task_id] = task
-                    t = threading.Thread(
-                        target=callback_wrapper(callback, task)
-                    )
-                    t.start()
+                try:
+                    tasks = self.__poll_by_task_type(task_type, self.worker_id, 1)
+                    if len(tasks) > 0:
+                        logging.info(f"拉取到 {len(tasks)} 条 {task_type} 任务")
+                    for task in tasks:
+                        callback = self.task_types[task_type]
+                        task_id = task.get('taskId')
+                        self.tasks[task_id] = task
+                        t = threading.Thread(
+                            target=callback_wrapper(callback, task)
+                        )
+                        t.start()
+                except Exception:
+                    traceback.print_exc()
                 time.sleep(self.poll_interval_ms / 1000)
 
     def set_all_tasks_to_failed_state(self):
@@ -179,7 +189,26 @@ class ConductorClient:
             "workerId": self.worker_id
         }
         if output_data:
-            body['outputData'] = output_data
+            obj_bytes = json.dumps(output_data).encode('utf-8')
+            size = len(obj_bytes)
+            size_in_kb = size / 1024
+            # 大于临界值，需要上传
+            if size_in_kb > self.task_output_payload_size_threshold_kb:
+                key = f"task/output/{task_id}.json"
+                start = time.time()
+                print(
+                    f"检测到 {task_id} 的 output ({size_in_kb} kb) 大于临界值 {self.task_output_payload_size_threshold_kb} kb，开始上传到 oss 外部存储")
+                self.external_storage.upload_bytes(
+                    key,
+                    obj_bytes
+                )
+                end = time.time()
+                spend = end - start
+                print(f"上传到 oss 外部存储成功：path={key}, 耗时={spend} s")
+                body['outputData'] = {}
+                body['externalOutputPayloadStoragePath'] = key
+            else:
+                body['outputData'] = output_data
         if reason_for_incompletion:
             body['reasonForIncompletion'] = reason_for_incompletion
         if callback_after_seconds:

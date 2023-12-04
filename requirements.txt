@@ -5,3 +5,5 @@ sentry_sdk
 sentry-sdk[flask]
 bullmq
 requests
+Pympler
+python-dotenv==1.0.0

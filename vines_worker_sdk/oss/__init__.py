@@ -89,6 +89,13 @@ class OSSClient():
         except Exception as e:
             print('fail with unknown error: {}'.format(e))
 
+    def upload_bytes(self, key, bytes):
+        self.client.put_object(
+            Bucket=self.bucket_name,
+            Key=key,
+            Body=bytes
+        )
+
     def __get_file_extension(self, file_path):
         _, file_extension = os.path.splitext(file_path)
         return file_extension
