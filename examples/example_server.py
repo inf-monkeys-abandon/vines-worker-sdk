@@ -5,9 +5,8 @@ sentry_dsn = "https://45426676ad0c4ea9628deef009d11620@o4506154455531520.ingest.
 redis_queue_url = "redis://localhost:6379/0"
 
 app = create_server(
-    __name__,
-    sentry_dsn=sentry_dsn,
-    log_redis_queue_url=redis_queue_url
+    service_token="",
+    import_name=__name__,
 )
 
 
