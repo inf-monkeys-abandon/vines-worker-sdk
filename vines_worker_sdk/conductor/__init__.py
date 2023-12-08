@@ -121,7 +121,10 @@ class ConductorClient:
     def __get_real_workflow_instance_id_start_by_server(self, workflow_instance_id):
         has_parent_workflow = True
         while has_parent_workflow:
-            r = requests.get(f"{self.conductor_base_url}/workflow/{workflow_instance_id}")
+            r = requests.get(
+                url=f"{self.conductor_base_url}/workflow/{workflow_instance_id}",
+                auth=self.__get_auth()
+            )
             data = r.json()
             if data.get('parentWorkflowId'):
                 workflow_instance_id = data.get('parentWorkflowId')
