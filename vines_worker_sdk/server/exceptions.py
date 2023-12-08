@@ -2,5 +2,5 @@ class ClientException(Exception):
     pass
 
 
-class ServiceException(Exception):
+class ServerException(Exception):
     pass

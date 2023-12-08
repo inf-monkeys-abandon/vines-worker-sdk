@@ -7,3 +7,5 @@ bullmq
 requests
 Pympler
 python-dotenv==1.0.0
+pyjwt
+redis

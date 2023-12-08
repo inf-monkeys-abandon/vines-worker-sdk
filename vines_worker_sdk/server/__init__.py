@@ -1,14 +1,23 @@
+import os
 import sentry_sdk
 from flask import Flask, request, jsonify
-import os
-
 from sentry_sdk.integrations.flask import FlaskIntegration
-from .exceptions import ClientException, ServiceException
+from .exceptions import ClientException, ServerException
+import jwt
+
+
+def verify_jwt(token: str, secret: str):
+    try:
+        payload = jwt.decode(token, secret, algorithms=['HS256'])
+        return payload  # 如果成功，返回 payload 数据
+    except jwt.InvalidTokenError:
+        return None  # 如果失败，返回 None
 
 
 def create_server(
-        service_token: str,
+        jwt_secret: str,
         import_name: str,
+        service_token: str = None,
         static_url_path: str | None = None,
         static_folder: str | os.PathLike | None = "static",
         static_host: str | None = None,
@@ -53,7 +62,7 @@ def create_server(
 
         if isinstance(error, ClientException):
             response['code'] = 400
-        elif isinstance(error, ServiceException):
+        elif isinstance(error, ServerException):
             response['code'] = 500
         else:
             response['code'] = 500
@@ -62,19 +71,32 @@ def create_server(
 
     @app.before_request
     def before_request():
-        # Define the header you want to check for
-        required_headers = [
-            "x-vines-service-token",
-        ]
+        # 用户发起的，使用
+        authorization_key = 'authorization'
+        team_id_key = 'x-vines-team-id'
+        token = request.headers[authorization_key]
+        if not token:
+            return jsonify({'error': f'Required header {authorization_key} missing', 'status_code': 403}), 403
 
-        if request.method != 'OPTIONS':  # Exclude pre-flight requests
-            for required_header in required_headers:
-                if required_header not in request.headers:
-                    # Return a 400 Bad Request response if the required header is missing
-                    return jsonify({'error': f'Required header {required_header} missing', 'status_code': 403}), 403
-
-        service_token_in_header = request.headers['x-vines-service-token']
-        if service_token_in_header != service_token:
-            return jsonify({'error': f'Invalid header service token provided', 'status_code': 403}), 403
+        if token.startswith("System "):
+            token = token.replace("System ", "")
+            if not service_token:
+                return jsonify({'error': f'Service authentication method not supported', 'status_code': 403}), 403
+            if service_token != token:
+                return jsonify({'error': f'Invalid {authorization_key} value provided', 'status_code': 403}), 403
+            request.is_super_user = True
+        elif token.startswith("Bearer "):
+            token = token.replace("Bearer ", "")
+            verified_payload = verify_jwt(token, jwt_secret)
+            if not verified_payload:
+                return jsonify({'error': f'Invalid {authorization_key} value provided', 'status_code': 403}), 403
+            team_id = request.headers.get(team_id_key)
+            if not team_id:
+                return jsonify(
+                    {'error': f'{team_id_key} must be provided when use user authentication', 'status_code': 403}), 403
+            request.user_id = verified_payload['id']
+            request.team_id = team_id
+        else:
+            return jsonify({'error': f'Invalid {authorization_key} value provided', 'status_code': 403}), 403
 
     return app
