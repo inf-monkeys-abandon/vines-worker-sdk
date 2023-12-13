@@ -8,6 +8,7 @@ from requests.auth import HTTPBasicAuth
 from vines_worker_sdk.exceptions import ServiceRegistrationException
 import json
 import redis
+import os
 
 from vines_worker_sdk.oss import OSSClient
 
@@ -29,6 +30,7 @@ class ConductorClient:
             authentication_settings=None,
             task_output_payload_size_threshold_kb=1024,
             external_storage: OSSClient = None,
+            external_storage_tmp_folder: str = "/tmp",
             worker_name_prefix=None
     ):
         self.service_registration_url = service_registration_url
@@ -39,15 +41,22 @@ class ConductorClient:
         self.authentication_settings = authentication_settings
         self.task_output_payload_size_threshold_kb = task_output_payload_size_threshold_kb
         self.external_storage = external_storage
+        self.external_storage_tmp_folder = external_storage_tmp_folder
         self.worker_name_prefix = worker_name_prefix
         self.redis_client = redis.from_url(redis_url)
 
     def __get_auth(self):
-        auth = HTTPBasicAuth(
-            username=self.authentication_settings.get('username'),
-            password=self.authentication_settings.get('password')
-        ) if self.authentication_settings else None
-        return auth
+        if not self.authentication_settings:
+            return None
+        username = self.authentication_settings.get('username')
+        password = self.authentication_settings.get('password')
+        if username and password:
+            auth = HTTPBasicAuth(
+                username=username,
+                password=password
+            ) if self.authentication_settings else None
+            return auth
+        return None
 
     def __add_source_for_block(self, block):
         if not block.get('extra'):
@@ -146,7 +155,16 @@ class ConductorClient:
             def wrapper():
                 workflow_instance_id = task.get('workflowInstanceId')
                 task_id = task.get('taskId')
+                externalInputPayloadStoragePath = task.get('externalInputPayloadStoragePath')
                 try:
+                    if externalInputPayloadStoragePath:
+                        tmp_file_name = os.path.join(self.external_storage_tmp_folder, f"{task_id}.json")
+                        self.external_storage.download_file_tos(tmp_file_name, externalInputPayloadStoragePath)
+                        input_data = {}
+                        with open(tmp_file_name, 'r', encoding='utf-8') as f:
+                            input_data = json.load(f)
+                        task['inputData'] = input_data
+                        os.remove(tmp_file_name)
                     workflow_context = self.get_workflow_context(workflow_instance_id)
                     result = callback(task, workflow_context)
                     # 如果有明确返回值，说明是同步执行逻辑，否则是一个异步函数，由开发者自己来修改 task 状态
