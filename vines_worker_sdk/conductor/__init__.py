@@ -149,6 +149,18 @@ class ConductorClient:
             raise Exception(f"无法获取 workflow context for workflowInstanceId={workflow_instance_id}")
         return json.loads(str_result)
 
+    def __get_credential_cache_key(self, app_id: str, team_id: str):
+        return f"{app_id}:credentials:{team_id}"
+
+    def get_credential_data(self, workflow_context, id: str):
+        team_id = workflow_context.get("teamId")
+        app_id = workflow_context.get("APP_ID")
+        key = self.__get_credential_cache_key(app_id, team_id)
+        str_result = self.redis_client.hget(key, id)
+        if not str_result:
+            return None
+        return json.loads(str_result)
+
     def start_polling(self):
 
         def callback_wrapper(callback, task):
@@ -166,7 +178,13 @@ class ConductorClient:
                         task['inputData'] = input_data
                         os.remove(tmp_file_name)
                     workflow_context = self.get_workflow_context(workflow_instance_id)
-                    result = callback(task, workflow_context)
+                    input_data = task['inputData']
+                    credential = input_data.get("credential", None)
+                    credential_data = None
+                    if credential:
+                        credential_id = credential.get('id')
+                        credential_data = self.get_credential_data(workflow_context, credential_id)
+                    result = callback(task, workflow_context, credential_data)
                     # 如果有明确返回值，说明是同步执行逻辑，否则是一个异步函数，由开发者自己来修改 task 状态
                     if result:
                         self.update_task_result(
@@ -177,8 +195,7 @@ class ConductorClient:
                         )
                         del self.tasks[task_id]
                 except Exception as e:
-                    print(str(e))
-                    traceback.print_stack()
+                    traceback.print_exc()
                     self.update_task_result(
                         workflow_instance_id=workflow_instance_id,
                         task_id=task_id,
