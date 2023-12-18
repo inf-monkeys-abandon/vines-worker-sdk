@@ -45,7 +45,7 @@ class OSSClient():
         return file_url.split('/')[-1].split('.')[0]
 
     def get_file_type(self, file_url):
-        return file_url.split('.')[-1]
+        return file_url.split('.')[-1].split('?')[0]
 
     def download_file(self, file_url, target_path):
         """
