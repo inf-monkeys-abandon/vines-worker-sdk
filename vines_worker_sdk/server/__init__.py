@@ -74,6 +74,14 @@ def create_server(
         # 用户发起的，使用
         authorization_key = 'authorization'
         team_id_key = 'x-vines-team-id'
+        app_id_key = 'x-vines-app-id'
+        app_id = request.headers[app_id_key]
+
+        if not app_id:
+            return jsonify({'error': f'Required header {app_id_key} missing', 'status_code': 403}), 403
+
+        request.app_id = app_id
+
         token = request.headers[authorization_key]
         if not token:
             return jsonify({'error': f'Required header {authorization_key} missing', 'status_code': 403}), 403
