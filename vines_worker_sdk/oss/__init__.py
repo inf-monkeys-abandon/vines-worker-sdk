@@ -3,6 +3,7 @@ import requests
 import boto3
 from botocore.client import Config
 import os
+import uuid
 
 from vines_worker_sdk.utils.files import ensure_directory_exists
 
@@ -56,12 +57,9 @@ class OSSClient():
         try:
             response = requests.get(file_url, stream=True)
             response.raise_for_status()
-
-            filename = self.get_file_name(file_url)
-            # 检查filename中的中文是否被编码，如果被编码则解码，以解码后的文件名保存
             filetype = self.get_file_type(file_url)
             ensure_directory_exists(target_path)
-            final_path = f"{target_path}/{filename}.{filetype}"
+            final_path = f"{target_path}/{str(uuid.uuid4())}.{filetype}"
             with open(final_path, 'wb') as f:
                 for chunk in response.iter_content(chunk_size=8192):
                     f.write(chunk)
