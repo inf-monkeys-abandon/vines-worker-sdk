@@ -244,21 +244,22 @@ class ConductorClient:
                     if result:
                         # 扣除相应的费用
                         end = time.time()
-                        self.__send_task_usage_message(app_id, {
-                            "version": "1",
-                            "dataContentType": "text/json",
-                            "timestamp": int(time.time()),
-                            "origin": self.worker_id,
-                            "data": {
-                                "workflowId": task.get('workflowType'),
-                                "workflowInstanceId": task.get('workflowInstanceId'),
-                                "workflowContext": workflow_context,
-                                "blockName": block_name,
-                                "taskReferenceName": task.get('referenceTaskName'),
-                                "taskId": task.get('taskId'),
-                                "executeTime": end - start
-                            }
-                        })
+                        if self.admin_server_url:
+                            self.__send_task_usage_message(app_id, {
+                                "version": "1",
+                                "dataContentType": "text/json",
+                                "timestamp": int(time.time()),
+                                "origin": self.worker_id,
+                                "data": {
+                                    "workflowId": task.get('workflowType'),
+                                    "workflowInstanceId": task.get('workflowInstanceId'),
+                                    "workflowContext": workflow_context,
+                                    "blockName": block_name,
+                                    "taskReferenceName": task.get('referenceTaskName'),
+                                    "taskId": task.get('taskId'),
+                                    "executeTime": end - start
+                                }
+                            })
 
                         self.update_task_result(
                             workflow_instance_id=workflow_instance_id,
