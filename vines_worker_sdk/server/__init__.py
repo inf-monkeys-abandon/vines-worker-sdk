@@ -1,4 +1,6 @@
 import os
+import traceback
+
 import sentry_sdk
 from flask import Flask, request, jsonify
 from sentry_sdk.integrations.flask import FlaskIntegration
@@ -56,6 +58,7 @@ def create_server(
 
     @app.errorhandler(Exception)
     def handle_exception(error):
+        traceback.print_exc()
         if sentry_dsn:
             sentry_sdk.capture_exception(error=error)
         response = {'message': str(error)}

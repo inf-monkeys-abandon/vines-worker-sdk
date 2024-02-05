@@ -1,16 +1,21 @@
+import asyncio
 import logging
 
 import requests
 import time
 import threading
 import traceback
+
+from bullmq.types import QueueBaseOptions
 from requests.auth import HTTPBasicAuth
 from vines_worker_sdk.exceptions import ServiceRegistrationException
 import json
 import redis
 import os
-
+from urllib.parse import urljoin
 from vines_worker_sdk.oss import OSSClient
+from .worker import Worker
+from bullmq import Queue
 
 
 class ConductorClient:
@@ -31,7 +36,8 @@ class ConductorClient:
             task_output_payload_size_threshold_kb=1024,
             external_storage: OSSClient = None,
             external_storage_tmp_folder: str = "/tmp",
-            worker_name_prefix=None
+            worker_name_prefix=None,
+            admin_server_url: str = None,
     ):
         self.service_registration_url = service_registration_url
         self.service_registration_token = service_registration_token
@@ -43,7 +49,9 @@ class ConductorClient:
         self.external_storage = external_storage
         self.external_storage_tmp_folder = external_storage_tmp_folder
         self.worker_name_prefix = worker_name_prefix
+        self.redis_url = redis_url
         self.redis_client = redis.from_url(redis_url)
+        self.admin_server_url = admin_server_url
 
     def __get_auth(self):
         if not self.authentication_settings:
@@ -74,25 +82,32 @@ class ConductorClient:
             json=[task_def]
         )
 
-    def register_block(self, block, retry_count=3, timeout_seconds=86400, owner_email='dev@infmonkeys.com'):
+    def register_worker(self, worker: Worker, retry_count=0, timeout_seconds=86400, owner_email='dev@infmonkeys.com'):
+
+        # 向 conductor 注册 worker
+        block_def = worker.block_def
         task_def = {
-            "name": block.get('name'),
-            "inputKeys": [input.get('name') for input in block.get('input')],
-            "outputKeys": [output.get('name') for output in block.get('output')],
+            "name": block_def.get('name'),
+            "inputKeys": [input.get('name') for input in block_def.get('input', [])],
+            "outputKeys": [output.get('name') for output in block_def.get('output', [])],
             "retryCount": retry_count,
             "timeoutSeconds": timeout_seconds,
             "ownerEmail": owner_email
         }
         self.__register_task_def(task_def)
-        self.__add_source_for_block(block)
+
+        # 向 vines 注册 block
+        block_def['type'] = 'SIMPLE'
+        self.__add_source_for_block(block_def)
+        url = urljoin(self.service_registration_url, '/api/blocks/register')
         r = requests.post(
-            url=f"{self.service_registration_url}/api/blocks/register",
+            url=url,
             json={
-                "blocks": [block]
+                "blocks": [block_def]
             },
             headers={
                 "x-vines-service-registration-key": self.service_registration_token
-            }
+            },
         )
         json = r.json()
         code, message = json.get('code'), json.get('message')
@@ -103,10 +118,19 @@ class ConductorClient:
         if not success:
             raise ServiceRegistrationException("Register blocks failed")
 
-    def register_handler(self, name, callback):
-        if self.worker_name_prefix:
-            name = self.worker_name_prefix + name
-        self.task_types[name] = callback
+        # TODO: 向 vines 注册 credential
+        if worker.credential_def:
+            pass
+
+        # 注册任务回调函数
+        self.__register_handler(worker.block_name, worker.handler)
+
+    def __register_handler(self, name, callback):
+        name_with_prefix = self.worker_name_prefix + name if self.worker_name_prefix else name
+        self.task_types[name_with_prefix] = {
+            "callback": callback,
+            "block_name": name
+        }
 
     def __poll_by_task_type(self, task_type, worker_id, count=1, domain=None):
         params = {
@@ -141,7 +165,7 @@ class ConductorClient:
                 has_parent_workflow = False
         return workflow_instance_id
 
-    def get_workflow_context(self, workflow_instance_id):
+    def __get_workflow_context(self, workflow_instance_id):
         workflow_instance_id = self.__get_real_workflow_instance_id_start_by_server(workflow_instance_id)
         key = self.__get_workflow_context_cache_key(workflow_instance_id)
         str_result = self.redis_client.get(key)
@@ -152,7 +176,7 @@ class ConductorClient:
     def __get_credential_cache_key(self, app_id: str, team_id: str):
         return f"{app_id}:credentials:{team_id}"
 
-    def get_credential_data(self, workflow_context, id: str):
+    def __get_credential_data(self, workflow_context, id: str):
         team_id = workflow_context.get("teamId")
         app_id = workflow_context.get("APP_ID")
         key = self.__get_credential_cache_key(app_id, team_id)
@@ -161,9 +185,34 @@ class ConductorClient:
             return None
         return json.loads(str_result)
 
+    def __check_balance(self, team_id, block_name):
+        if not self.admin_server_url:
+            return
+
+        url = urljoin(self.admin_server_url, '/api/payment/check-balance')
+        data = {}
+        try:
+            r = requests.post(url, json={
+                'teamId': team_id,
+                'blockName': block_name
+            })
+            data = r.json()
+        except Exception as e:
+            return
+
+        success, err_msg = data.get('data', {}).get('success'), data.get('data', {}).get('errMsg')
+        if not success:
+            raise Exception(err_msg)
+
+    def __send_task_usage_message(self, app_id, message):
+        queue = Queue("workflow-task-usage", self.redis_url, QueueBaseOptions(
+            prefix=app_id
+        ))
+        asyncio.run(queue.add("event", message))
+
     def start_polling(self):
 
-        def callback_wrapper(callback, task):
+        def callback_wrapper(block_name, task, callback):
             def wrapper():
                 workflow_instance_id = task.get('workflowInstanceId')
                 task_id = task.get('taskId')
@@ -177,16 +226,40 @@ class ConductorClient:
                             input_data = json.load(f)
                         task['inputData'] = input_data
                         os.remove(tmp_file_name)
-                    workflow_context = self.get_workflow_context(workflow_instance_id)
+                    workflow_context = self.__get_workflow_context(workflow_instance_id)
                     input_data = task['inputData']
                     credential = input_data.get("credential", None)
                     credential_data = None
                     if credential:
                         credential_id = credential.get('id')
-                        credential_data = self.get_credential_data(workflow_context, credential_id)
+                        credential_data = self.__get_credential_data(workflow_context, credential_id)
+
+                    # 执行计费逻辑
+                    team_id = workflow_context['teamId']
+                    app_id = workflow_context['APP_ID']
+                    self.__check_balance(team_id, block_name)
+                    start = time.time()
                     result = callback(task, workflow_context, credential_data)
                     # 如果有明确返回值，说明是同步执行逻辑，否则是一个异步函数，由开发者自己来修改 task 状态
                     if result:
+                        # 扣除相应的费用
+                        end = time.time()
+                        self.__send_task_usage_message(app_id, {
+                            "version": "1",
+                            "dataContentType": "text/json",
+                            "timestamp": int(time.time()),
+                            "origin": self.worker_id,
+                            "data": {
+                                "workflowId": task.get('workflowType'),
+                                "workflowInstanceId": task.get('workflowInstanceId'),
+                                "workflowContext": workflow_context,
+                                "blockName": block_name,
+                                "taskReferenceName": task.get('referenceTaskName'),
+                                "taskId": task.get('taskId'),
+                                "executeTime": end - start
+                            }
+                        })
+
                         self.update_task_result(
                             workflow_instance_id=workflow_instance_id,
                             task_id=task_id,
@@ -217,11 +290,12 @@ class ConductorClient:
                     if len(tasks) > 0:
                         logging.info(f"拉取到 {len(tasks)} 条 {task_type} 任务")
                     for task in tasks:
-                        callback = self.task_types[task_type]
+                        callback = self.task_types[task_type]['callback']
+                        block_name = self.task_types[task_type]['block_name']
                         task_id = task.get('taskId')
                         self.tasks[task_id] = task
                         t = threading.Thread(
-                            target=callback_wrapper(callback, task)
+                            target=callback_wrapper(block_name, task, callback)
                         )
                         t.start()
                 except Exception:

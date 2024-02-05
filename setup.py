@@ -6,7 +6,7 @@ with io.open("README.md", "r", encoding='utf-8') as f:
 
 # Package metadata
 NAME = 'vines_worker_sdk'
-VERSION = '0.0.15'
+VERSION = '0.0.16'
 DESCRIPTION = 'Vines Python 训练项目 SDK （供内部使用）'
 AUTHOR = 'infmonkeys'
 EMAIL = 'def@infmonkeys.com'
@@ -22,7 +22,9 @@ INSTALL_REQUIRES = [
     "sentry-sdk[flask]",
     "bullmq",
     "pyjwt",
-    "redis"
+    "redis",
+    "bullmq",
+    "python-dotenv==1.0.0"
 ]
 
 # Packages to include
