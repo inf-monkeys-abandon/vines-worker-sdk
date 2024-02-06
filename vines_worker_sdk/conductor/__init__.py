@@ -205,7 +205,7 @@ class ConductorClient:
             raise Exception(err_msg)
 
     def __send_task_usage_message(self, app_id, message):
-        queue = Queue("workflow-task-usage", self.redis_url, QueueBaseOptions(
+        queue = Queue(name="workflow-task-usage", redisOpts=self.redis_url, opts=QueueBaseOptions(
             prefix=app_id
         ))
         asyncio.run(queue.add("event", message))

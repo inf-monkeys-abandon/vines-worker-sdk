@@ -9,4 +9,4 @@ Pympler
 python-dotenv==1.0.0
 pyjwt
 redis
-bullmq
+bullmq==1.17.0
