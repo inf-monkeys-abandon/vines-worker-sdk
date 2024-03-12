@@ -5,6 +5,7 @@ from botocore.client import Config
 import os
 
 from vines_worker_sdk.utils.files import ensure_directory_exists
+from urllib.parse import unquote
 
 
 class OSSClient():
@@ -46,7 +47,7 @@ class OSSClient():
         filename = url.split('/')[-1]
         # 去掉可能存在的URL参数
         filename = filename.split('?')[0]
-        return filename
+        return unquote(filename)
 
     def download_file(self, file_url, target_path):
         """
