@@ -3,7 +3,6 @@ import requests
 import boto3
 from botocore.client import Config
 import os
-import uuid
 
 from vines_worker_sdk.utils.files import ensure_directory_exists
 
@@ -42,11 +41,12 @@ class OSSClient():
             return False
         return True
 
-    def get_file_name(self, file_url):
-        return file_url.split('/')[-1].split('.')[0]
-
-    def get_file_type(self, file_url):
-        return file_url.split('.')[-1].split('?')[0]
+    def extract_filename(self, url):
+        # 从URL中提取文件名部分
+        filename = url.split('/')[-1]
+        # 去掉可能存在的URL参数
+        filename = filename.split('?')[0]
+        return filename
 
     def download_file(self, file_url, target_path):
         """
@@ -57,9 +57,9 @@ class OSSClient():
         try:
             response = requests.get(file_url, stream=True)
             response.raise_for_status()
-            filetype = self.get_file_type(file_url)
+            filename = self.extract_filename(file_url)
             ensure_directory_exists(target_path)
-            final_path = f"{target_path}/{str(uuid.uuid4())}.{filetype}"
+            final_path = f"{target_path}/{filename}"
             with open(final_path, 'wb') as f:
                 for chunk in response.iter_content(chunk_size=8192):
                     f.write(chunk)

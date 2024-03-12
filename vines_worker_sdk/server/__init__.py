@@ -1,9 +1,6 @@
 import os
 import traceback
-
-import sentry_sdk
 from flask import Flask, request, jsonify
-from sentry_sdk.integrations.flask import FlaskIntegration
 from .exceptions import ClientException, ServerException
 import jwt
 
@@ -12,7 +9,7 @@ def verify_jwt(token: str, secret: str):
     try:
         payload = jwt.decode(token, secret, algorithms=['HS256'])
         return payload  # 如果成功，返回 payload 数据
-    except jwt.InvalidTokenError:
+    except Exception:
         return None  # 如果失败，返回 None
 
 
@@ -29,7 +26,6 @@ def create_server(
         instance_path: str | None = None,
         instance_relative_config: bool = False,
         root_path: str | None = None,
-        sentry_dsn: str | None = None,
 ):
     app = Flask(
         import_name,
@@ -44,23 +40,9 @@ def create_server(
         root_path
     )
 
-    if sentry_dsn:
-        sentry_sdk.init(
-            dsn=sentry_dsn,
-            # Enable performance monitoring
-            enable_tracing=True,
-            integrations=[
-                FlaskIntegration(
-                    transaction_style="url",
-                ),
-            ],
-        )
-
     @app.errorhandler(Exception)
     def handle_exception(error):
         traceback.print_exc()
-        if sentry_dsn:
-            sentry_sdk.capture_exception(error=error)
         response = {'message': str(error)}
 
         if isinstance(error, ClientException):
